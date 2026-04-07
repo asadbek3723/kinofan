@@ -22,7 +22,7 @@ export default function Home() {
       const roomId = await createRoomSocket();
       navigate(`/room/${roomId}`);
     } catch (e) {
-      setError(e.message || 'Could not create room');
+      setError(e instanceof Error ? e.message : 'Xona yaratib bo‘lmadi');
     } finally {
       setLoading(false);
     }

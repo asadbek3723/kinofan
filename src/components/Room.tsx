@@ -10,10 +10,17 @@ import Chat from './Chat';
 import InviteButton from './InviteButton';
 import NicknameModal from './NicknameModal';
 import styles from './Room.module.css';
+import type { ChatMessage } from '../api/rooms';
 
 const NICKNAME_KEY = 'kinofan_nickname';
 
-function RoomContent({ roomId, nickname, onLeave }) {
+interface RoomContentProps {
+  roomId: string | undefined;
+  nickname: string;
+  onLeave: () => void;
+}
+
+function RoomContent({ roomId, nickname, onLeave }: RoomContentProps) {
   const navigate = useNavigate();
   const useSupabase = !!supabase;
   const validRoomId = roomId && typeof roomId === 'string' && roomId.trim() ? roomId.trim() : null;
@@ -21,10 +28,10 @@ function RoomContent({ roomId, nickname, onLeave }) {
   const supabaseRoom = useSupabaseRoom(validRoomId, nickname, { enabled: useSupabase });
   const socketRoom = useSocket(validRoomId, nickname, !useSupabase);
 
-  const [socketChatMessages, setSocketChatMessages] = useState([]);
+  const [socketChatMessages, setSocketChatMessages] = useState<ChatMessage[]>([]);
   useEffect(() => {
     if (useSupabase || !socketRoom.on) return;
-    return socketRoom.on('chat', (msg) => setSocketChatMessages((prev) => [...prev, msg]));
+    return socketRoom.on('chat', (msg: ChatMessage) => setSocketChatMessages((prev) => [...prev, msg]));
   }, [useSupabase, socketRoom.on]);
 
   const socket = useSupabase ? supabaseRoom.socket : socketRoom.socket;
@@ -39,7 +46,7 @@ function RoomContent({ roomId, nickname, onLeave }) {
   const chatMessages = useSupabase ? supabaseRoom.chatMessages : socketChatMessages;
   const handleSendChat = useSupabase
     ? supabaseRoom.handleSendChat
-    : useCallback((text) => socketRoom.emit('chat', text), [socketRoom.emit]);
+    : useCallback((text: string) => socketRoom.emit('chat', text), [socketRoom.emit]);
 
   const {
     stream: webcamStream,
@@ -49,10 +56,11 @@ function RoomContent({ roomId, nickname, onLeave }) {
     micMuted,
     setMicMuted,
   } = useMediaStream();
-  const [movieStream, setMovieStream] = useState(null);
-  const hostVideoRef = useRef(null);
+  const [movieStream, setMovieStream] = useState<MediaStream | null>(null);
+  const hostVideoRef = useRef<HTMLVideoElement>(null);
+  const clientVideoRef = useRef<HTMLVideoElement>(null);
 
-  const { remoteStreams } = useWebRTC({
+  const { remoteStreams, webrtcError } = useWebRTC({
     socket,
     connected,
     isHost,
@@ -62,9 +70,29 @@ function RoomContent({ roomId, nickname, onLeave }) {
     emit,
   });
 
-  const handleFileSelect = useCallback((stream) => {
+  const handleFileSelect = useCallback((stream: MediaStream) => {
     setMovieStream(stream);
   }, []);
+
+  const emitVideoControl = useCallback(
+    (payload: { time?: number; playing?: boolean }) => {
+      if (payload && typeof payload === 'object') emit('video-control', payload);
+    },
+    [emit]
+  );
+
+  useEffect(() => {
+    if (!on || isHost) return;
+    return on('video-control', (payload: { time?: number; playing?: boolean }) => {
+      const el = clientVideoRef.current;
+      if (!el) return;
+      if (typeof payload?.time === 'number') el.currentTime = payload.time;
+      if (typeof payload?.playing === 'boolean') {
+        if (payload.playing) el.play().catch(() => {});
+        else el.pause();
+      }
+    });
+  }, [on, isHost]);
 
   useEffect(() => {
     if (!connected) return;
@@ -152,7 +180,7 @@ function RoomContent({ roomId, nickname, onLeave }) {
 
       <div className={styles.main}>
         <div className={styles.camerasColumn}>
-          <h3 className={styles.sectionTitle}>Cameras</h3>
+          <h3 className={styles.sectionTitle}>Kamerlar</h3>
           <div className={styles.cameraControls}>
             {webcamStream ? (
               <>
@@ -161,26 +189,39 @@ function RoomContent({ roomId, nickname, onLeave }) {
                   className={styles.smallButton}
                   onClick={() => setMicMuted(!micMuted)}
                   title={micMuted ? 'Mikrofonni yoqish' : 'Mikrofonni o‘chirish'}
+                  aria-label={micMuted ? 'Mikrofonni yoqish' : 'Mikrofonni o‘chirish'}
                 >
-                  {micMuted ? 'Mic off' : 'Mic on'}
+                  {micMuted ? 'Mikrofon o‘chiq' : 'Mikrofon ochiq'}
                 </button>
-                <button type="button" className={styles.smallButton} onClick={stopVideo} title="Kamerani o‘chirish">
-                  Camera off
+                <button
+                  type="button"
+                  className={styles.smallButton}
+                  onClick={stopVideo}
+                  title="Kamerani o‘chirish"
+                  aria-label="Kamerani o‘chirish"
+                >
+                  Kamerani o‘chirish
                 </button>
               </>
             ) : (
-              <button type="button" className={styles.smallButton} onClick={startCam} title="Kamerani yoqish">
-                Camera on
+              <button
+                type="button"
+                className={styles.smallButton}
+                onClick={startCam}
+                title="Kamerani yoqish"
+                aria-label="Kamerani yoqish"
+              >
+                Kamerani yoqish
               </button>
             )}
           </div>
           <div className={styles.webcamGrid}>
             {webcamStream ? (
-              <WebcamTile stream={webcamStream} label={nickname || 'You'} muted />
+              <WebcamTile stream={webcamStream} label={nickname || 'Siz'} muted />
             ) : (
               <div className={styles.cameraPlaceholder} title="Kamera o‘chirilgan">
-                <span>{nickname || 'You'}</span>
-                <span className={styles.placeholderHint}>Camera off</span>
+                <span>{nickname || 'Siz'}</span>
+                <span className={styles.placeholderHint}>Kamera o‘chiq</span>
               </div>
             )}
             {Object.entries(remoteStreams).map(([peerId, streams]) => (
@@ -204,11 +245,15 @@ function RoomContent({ roomId, nickname, onLeave }) {
               isHost
               videoRef={hostVideoRef}
               onFileSelect={handleFileSelect}
+              onPlay={emitVideoControl}
+              onPause={emitVideoControl}
+              onSeeked={emitVideoControl}
             />
           ) : (
             <MoviePlayer
-              stream={hostId ? remoteStreams[hostId]?.movie : null}
+              stream={hostId ? remoteStreams[hostId]?.movie ?? null : null}
               isHost={false}
+              videoRef={clientVideoRef}
             />
           )}
         </div>
@@ -237,16 +282,21 @@ function RoomContent({ roomId, nickname, onLeave }) {
               </button>
             </div>
           ) : (
-            reconnecting ? 'Qayta ulanmoqda…' : 'Connecting…'
+            reconnecting ? 'Qayta ulanmoqda…' : 'Ulanmoqda…'
           )}
         </div>
       )}
       {camError && (
         <div className={styles.camError}>
-          <span>Camera: {camError}</span>
+          <span>Kamera: {camError}</span>
           <button type="button" className={styles.camRetryButton} onClick={startCam}>
             Qayta urinish
           </button>
+        </div>
+      )}
+      {webrtcError && (
+        <div className={styles.camError}>
+          <span>Video ulanish: {webrtcError}</span>
         </div>
       )}
     </div>

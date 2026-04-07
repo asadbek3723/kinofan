@@ -35,6 +35,11 @@ export default defineConfig(async ({ mode }) => {
   return {
     base: publicUrl,
     plugins: await loadPlugins(),
+    test: {
+      globals: true,
+      environment: 'jsdom',
+      setupFiles: ['./src/test/setup.js'],
+    },
     build: {
       target: 'es2020',
       reportCompressedSize: false,

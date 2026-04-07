@@ -1,54 +1,24 @@
 .movieWrap {
-  width: 100%;
-  max-width: 900px;
-  aspect-ratio: 16 / 9;
-  background: var(--color-surface);
-  border-radius: var(--radius-md);
-  overflow: hidden;
   position: relative;
-}
-
-.fileInput {
-  display: none;
-}
-
-.fileLabel {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: var(--space-12) var(--space-24);
-  min-height: var(--touch-min);
+  width: 100%;
+  height: 100%;
+  background: #000;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-accent);
-  color: #fff;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  z-index: 1;
-  font-weight: var(--font-medium);
-  font-size: var(--text-sm);
-  transition: background 0.15s ease;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(124, 58, 237, 0.2);
+  transition: box-shadow 0.5s ease;
 }
 
-.fileLabel:hover {
-  background: var(--color-accent-hover);
-}
-
-.fileLabel:focus-visible {
-  outline: 2px solid var(--color-accent-focus);
-  outline-offset: 2px;
-}
-
-.fileLabelHidden {
-  display: none;
+.movieWrap:hover {
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.9), 0 0 30px rgba(124, 58, 237, 0.3);
 }
 
 .video {
   width: 100%;
-  height: 100%;
-  object-fit: contain;
+  max-height: 100%;
   display: block;
 }
 
@@ -56,85 +26,125 @@
   display: none;
 }
 
-.videoLoading {
+.fileInput {
   position: absolute;
-  inset: 0;
-  z-index: 2;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.fileLabel {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: var(--space-32);
+  background: rgba(124, 58, 237, 0.1);
+  border: 2px dashed rgba(124, 58, 237, 0.3);
+  border-radius: var(--radius-lg);
+  color: var(--color-accent-focus);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
+}
+
+.fileLabel:hover {
+  background: rgba(124, 58, 237, 0.2);
+  border-color: var(--color-accent-focus);
+  transform: translateY(-2px);
+}
+
+.fileLabel::before {
+  content: '📁';
+  font-size: 3rem;
+  margin-bottom: var(--space-8);
+}
+
+.fileLabelHidden {
+  display: none;
+}
+
+.videoLoading {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
   gap: var(--space-12);
-  background: rgba(15, 15, 18, 0.9);
-  color: var(--color-text-bright);
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  backdrop-filter: blur(10px);
 }
 
 .videoLoadingText {
-  font-size: var(--text-sm);
+  color: var(--color-text-bright);
+  font-weight: var(--font-medium);
 }
 
 .videoProgressTrack {
-  width: 80%;
-  max-width: 280px;
+  width: 200px;
   height: 6px;
   background: var(--color-surface-elevated);
-  border-radius: 999px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .videoProgressBar {
   height: 100%;
   background: var(--color-accent);
-  border-radius: 999px;
-  transition: width 0.15s ease;
+  transition: width 0.3s linear;
 }
 
 .moviePlaceholder {
-  width: 100%;
-  height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: var(--color-surface-elevated);
   color: var(--color-muted);
-  font-size: var(--text-sm);
-  padding: var(--space-24);
-  text-align: center;
+  gap: var(--space-12);
 }
 
-/* Webcam tile */
+.moviePlaceholder::before {
+  content: '🎬';
+  font-size: 4rem;
+  opacity: 0.5;
+}
+
+/* Webcam Tiles */
 .tile {
-  min-width: 120px;
-  max-width: 180px;
-  aspect-ratio: 4 / 3;
+  position: relative;
+  aspect-ratio: 16/9;
+  width: 100%;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: var(--color-surface-elevated);
-  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.tile:hover {
+  transform: scale(1.02);
+  border-color: var(--color-accent);
 }
 
 .tileVideo {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
 
 .tileLabel {
   position: absolute;
-  bottom: var(--space-4);
-  left: var(--space-4);
+  bottom: 0px;
+  left: 0px;
+  right: 0px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding: 8px var(--space-8) 4px;
+  color: white;
   font-size: var(--text-xs);
-  color: #fff;
-  background: rgba(0, 0, 0, 0.65);
-  padding: var(--space-4) var(--space-8);
-  border-radius: var(--radius-sm);
-  font-weight: var(--font-medium);
-}
-
-@media (min-width: 640px) {
-  .tile {
-    min-width: 140px;
-    max-width: 200px;
-  }
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }

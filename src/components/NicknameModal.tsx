@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import styles from './NicknameModal.module.css';
 
-export default function NicknameModal({ onSubmit, defaultName = '' }) {
+interface NicknameModalProps {
+  onSubmit: (name: string) => void;
+  defaultName?: string;
+}
+
+export default function NicknameModal({ onSubmit, defaultName = '' }: NicknameModalProps) {
   const [name, setName] = useState(defaultName);
 
   useEffect(() => {
     setName(defaultName);
   }, [defaultName]);
 
-  function handleSubmit(e) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     if (trimmed) onSubmit(trimmed);

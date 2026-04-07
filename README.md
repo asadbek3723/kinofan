@@ -94,6 +94,13 @@ Backend va frontend **alohida** deploy qilinadi: server statik fayl serve qilmay
 
 If you deploy to Vercel the repo already contains `vercel.json` which rewrites unknown routes to `index.html` so client-side routes (eg. `/room/:id`) don't return 404.
 
+**WebRTC notes & troubleshooting**
+- Configure a TURN server for reliable peer-to-peer connections (set `VITE_TURN_URL`, `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL` in Project Settings). Without TURN, peers behind restrictive NATs or carrier-grade NATs may not be able to connect to each other.
+- Quick dev checks:
+  - Open DevTools → Console and look for `[webrtc]` logs (offers/answers/ice, conn state).
+  - Inspect socket traffic (Network → WS) to confirm `signal` messages (offer/answer/ice) are exchanged between peers.
+  - Reproduce with one participant already in the room, then join with the second — the existing participant should receive a `peer-joined` event and create an offer.
+- If host video is visible but participants can't see each other, either signaling messages are not being relayed correctly by the server, or TURN is required.
 
 ⚠️ For Vercel deployments: this repo includes `vercel.json` which rewrites unknown routes to `index.html` so client-side routes like `/room/:id` don't return 404. This prevents third-party scripts (e.g. link-checkers) from producing `HEAD /room/... 404` in the browser console.
 

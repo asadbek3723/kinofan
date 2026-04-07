@@ -1,12 +1,13 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { nanoid } from 'nanoid';
 import { supabase } from '../api/supabase';
 import { getRoom, updateRoomHost, sendChatMessage, ensureRoom } from '../api/rooms';
+import type { ChatMessage } from '../api/rooms';
 
 const CHANNEL_PREFIX = 'room:';
 const CLIENT_ID_KEY = 'kinofan_client_id';
 
-function getOrCreateClientId() {
+function getOrCreateClientId(): string {
   if (typeof window === 'undefined') return nanoid();
   const stored = localStorage.getItem(CLIENT_ID_KEY);
   if (stored && stored.length > 0) return stored;
@@ -15,41 +16,45 @@ function getOrCreateClientId() {
   return id;
 }
 
-function useSupabaseRoom(roomId, nickname, options = {}) {
+interface UseSupabaseRoomOptions {
+  enabled?: boolean;
+}
+
+export default function useSupabaseRoom(
+  roomId: string | null,
+  nickname: string | undefined,
+  options: UseSupabaseRoomOptions = {}
+) {
   const { enabled = true } = options;
   const clientIdRef = useRef(getOrCreateClientId());
   const clientId = clientIdRef.current;
 
   const [connected, setConnected] = useState(false);
   const [isHost, setIsHost] = useState(false);
-  const [error, setError] = useState(null);
-  const [roomHostId, setRoomHostId] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [roomHostId, setRoomHostId] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
-  const [participantsMap, setParticipantsMap] = useState({});
-  const [chatMessages, setChatMessages] = useState([]);
+  const [participantsMap, setParticipantsMap] = useState<Record<string, string>>({});
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
-  const channelRef = useRef(null);
-  const messagesChannelRef = useRef(null);
-  const presenceKeysRef = useRef(new Set());
-  const handlersRef = useRef({});
-  const roomHostIdRef = useRef(null);
+  const channelRef = useRef<any>(null);
+  const messagesChannelRef = useRef<any>(null);
+  const presenceKeysRef = useRef(new Set<string>());
+  const handlersRef = useRef<Record<string, ((...args: unknown[]) => void)[]>>({});
+  const roomHostIdRef = useRef<string | null>(null);
 
-  const emit = useCallback((event, ...args) => {
+  const emit = useCallback((event: string, ...args: unknown[]) => {
     const ch = channelRef.current;
     if (!ch) return;
-    if (event === 'signal') {
-      const payload = args[0];
-      if (payload && typeof payload === 'object') {
-        ch.send({
-          type: 'broadcast',
-          event: 'signal',
-          payload: { from: clientId, ...payload },
-        });
-      }
-    }
+    const payload = args[0];
+    ch.send({
+      type: 'broadcast',
+      event: event,
+      payload: (payload && typeof payload === 'object') ? { from: clientId, ...payload } : { from: clientId, data: payload },
+    });
   }, [clientId]);
 
-  const on = useCallback((event, handler) => {
+  const on = useCallback((event: string, handler: (...args: unknown[]) => void) => {
     if (!handlersRef.current[event]) handlersRef.current[event] = [];
     handlersRef.current[event].push(handler);
     return () => {
@@ -57,8 +62,8 @@ function useSupabaseRoom(roomId, nickname, options = {}) {
     };
   }, []);
 
-  const fire = useCallback((event, ...args) => {
-    (handlersRef.current[event] || []).forEach((h) => {
+  const fire = useCallback((event: string, ...args: any[]) => {
+    (handlersRef.current[event] || []).forEach((h: (...args: any[]) => void) => {
       try {
         h(...args);
       } catch (e) {
@@ -71,7 +76,7 @@ function useSupabaseRoom(roomId, nickname, options = {}) {
     if (!roomId || !supabase || enabled === false) return;
 
     setError(null);
-    let channel;
+    let channel: ReturnType<typeof supabase.channel>;
     const channelName = CHANNEL_PREFIX + roomId;
 
     (async () => {
@@ -94,12 +99,12 @@ function useSupabaseRoom(roomId, nickname, options = {}) {
       channel
         .on('presence', { event: 'sync' }, () => {
           const state = channel.presenceState();
-          const nextMap = {};
-          const currentKeys = new Set();
+          const nextMap: Record<string, string> = {};
+          const currentKeys = new Set<string>();
           Object.entries(state).forEach(([key, presences]) => {
             currentKeys.add(key);
             const p = Array.isArray(presences) ? presences[0] : presences;
-            nextMap[key] = p?.nickname || 'Guest';
+            nextMap[key] = (p as { nickname?: string })?.nickname || 'Guest';
           });
           setParticipantsMap(nextMap);
 
@@ -128,10 +133,10 @@ function useSupabaseRoom(roomId, nickname, options = {}) {
           });
           presenceKeysRef.current = currentKeys;
         })
-        .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        .on('presence', { event: 'leave' }, ({ key }: { key: string }) => {
           const leftKey = key;
           presenceKeysRef.current.delete(leftKey);
-          setParticipantsMap((prev) => {
+          setParticipantsMap((prev: Record<string, string>) => {
             const next = { ...prev };
             delete next[leftKey];
             return next;
@@ -152,17 +157,20 @@ function useSupabaseRoom(roomId, nickname, options = {}) {
             }
           }
         })
-        .on('broadcast', { event: 'signal' }, ({ payload }) => {
-          if (payload && payload.from !== clientId) fire('signal', payload);
+        .on('broadcast', { event: 'signal' }, ({ payload }: { payload: unknown }) => {
+          if (payload && typeof payload === 'object' && (payload as { from?: string }).from !== clientId) fire('signal', payload);
         })
-        .on('broadcast', { event: 'host-changed' }, ({ payload }) => {
+        .on('broadcast', { event: 'video-control' }, ({ payload }: { payload: unknown }) => {
+          if (payload && typeof payload === 'object' && (payload as { from?: string }).from !== clientId) fire('video-control', payload);
+        })
+        .on('broadcast', { event: 'host-changed' }, ({ payload }: { payload?: { newHostId?: string } }) => {
           if (payload?.newHostId != null) {
             setRoomHostId(payload.newHostId);
             roomHostIdRef.current = payload.newHostId;
             setIsHost(payload.newHostId === clientId);
           }
         })
-        .subscribe(async (status) => {
+        .subscribe(async (status: string) => {
           if (status === 'SUBSCRIBED') {
             setConnected(true);
             setReconnecting(false);
@@ -199,24 +207,24 @@ function useSupabaseRoom(roomId, nickname, options = {}) {
 
       channelRef.current = channel;
 
-      const changesChannel = supabase
+      const changesChannel = supabase!
         .channel(`messages:${roomId}`)
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
-          (payload) => {
+          (payload: { new: Record<string, unknown> }) => {
             const row = payload.new;
             if (row) {
-              setChatMessages((prev) => {
-                if (prev.some((m) => m.id === row.id)) return prev;
+              setChatMessages((prev: ChatMessage[]) => {
+                if (prev.some((m: ChatMessage) => m.id === row.id)) return prev;
                 return [
                   ...prev,
                   {
-                    id: row.id,
-                    from: row.sender_id,
-                    nickname: row.nickname || 'Guest',
-                    text: row.text,
-                    at: new Date(row.created_at).getTime(),
+                    id: row.id as string,
+                    from: row.sender_id as string,
+                    nickname: (row.nickname as string) || 'Guest',
+                    text: row.text as string,
+                    at: new Date(row.created_at as string).getTime(),
                   },
                 ];
               });
@@ -226,19 +234,19 @@ function useSupabaseRoom(roomId, nickname, options = {}) {
         .subscribe();
       messagesChannelRef.current = changesChannel;
 
-      const { data: initialMessages } = await supabase
+      const { data: initialMessages } = await supabase!
         .from('messages')
         .select('id, sender_id, nickname, text, created_at')
         .eq('room_id', roomId)
         .order('created_at', { ascending: true });
       if (Array.isArray(initialMessages)) {
         setChatMessages(
-          initialMessages.map((m) => ({
-            id: m.id,
-            from: m.sender_id,
-            nickname: m.nickname || 'Guest',
-            text: m.text,
-            at: new Date(m.created_at).getTime(),
+          initialMessages.map((m: any) => ({
+            id: m.id as string,
+            from: m.sender_id as string,
+            nickname: (m.nickname as string) || 'Guest',
+            text: m.text as string,
+            at: new Date(m.created_at as string).getTime(),
           }))
         );
       }
@@ -263,10 +271,11 @@ function useSupabaseRoom(roomId, nickname, options = {}) {
   }, [roomId, clientId, nickname, fire, enabled]);
 
   const handleSendChat = useCallback(
-    (text) => {
-      sendChatMessage(roomId, clientId, nickname, text)
+    (text: string) => {
+      if (!roomId) return;
+      sendChatMessage(roomId, clientId, nickname || '', text)
         .then((msg) => {
-          if (msg) setChatMessages((prev) => [...prev, msg]);
+          if (msg) setChatMessages((prev: ChatMessage[]) => [...prev, msg]);
         })
         .catch((e) => {
           console.error('Send chat error', e);
@@ -292,5 +301,3 @@ function useSupabaseRoom(roomId, nickname, options = {}) {
     handleSendChat,
   };
 }
-
-export default useSupabaseRoom;

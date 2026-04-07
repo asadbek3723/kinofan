@@ -1,10 +1,25 @@
-import React, { useRef, useEffect, memo } from 'react';
+import React, { useRef, useEffect, memo, RefObject, ChangeEvent } from 'react';
 import styles from './VideoArea.module.css';
 
-function MoviePlayerInner({ stream, isHost, videoRef, onFileSelect }) {
-  const ref = useRef(null);
+interface VideoControlPayload {
+  time?: number;
+  playing?: boolean;
+}
+
+interface MoviePlayerInnerProps {
+  stream: MediaStream | null;
+  isHost: boolean;
+  videoRef?: RefObject<HTMLVideoElement | null>;
+  onFileSelect?: (stream: MediaStream) => void;
+  onPlay?: (payload: VideoControlPayload) => void;
+  onPause?: (payload: VideoControlPayload) => void;
+  onSeeked?: (payload: VideoControlPayload) => void;
+}
+
+function MoviePlayerInner({ stream, isHost, videoRef, onFileSelect, onPlay, onPause, onSeeked }: MoviePlayerInnerProps) {
+  const ref = useRef<HTMLVideoElement>(null);
   const r = videoRef || ref;
-  const objectUrlRef = useRef(null);
+  const objectUrlRef = useRef<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [loadProgress, setLoadProgress] = React.useState(0);
 
@@ -24,7 +39,7 @@ function MoviePlayerInner({ stream, isHost, videoRef, onFileSelect }) {
     };
   }, []);
 
-  const handleFileChange = (e) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target?.files?.[0];
     if (!file || !r.current) return;
     if (objectUrlRef.current) {
@@ -41,8 +56,8 @@ function MoviePlayerInner({ stream, isHost, videoRef, onFileSelect }) {
     video.preload = 'auto';
 
     let readyCalled = false;
-    let pollId = null;
-    let safetyTimer = null;
+    let pollId: ReturnType<typeof setInterval> | null = null;
+    let safetyTimer: ReturnType<typeof setTimeout> | null = null;
 
     const removeListeners = () => {
       video.removeEventListener('progress', onProgress);
@@ -73,7 +88,7 @@ function MoviePlayerInner({ stream, isHost, videoRef, onFileSelect }) {
         if (typeof video.captureStream === 'function' && onFileSelect) {
           onFileSelect(video.captureStream());
         }
-      } catch (err) {
+      } catch {
         // ignore
       }
     };
@@ -83,7 +98,7 @@ function MoviePlayerInner({ stream, isHost, videoRef, onFileSelect }) {
       finishAndStream();
       try {
         video.play().catch(() => {});
-      } catch (err) {
+      } catch {
         // ignore
       }
     };
@@ -145,8 +160,9 @@ function MoviePlayerInner({ stream, isHost, videoRef, onFileSelect }) {
         <label
           htmlFor="movie-file"
           className={stream ? styles.fileLabelHidden : styles.fileLabel}
+          aria-label="Galereyadan video tanlash"
         >
-          Choose video from gallery
+          Galereyadan video tanlang
         </label>
         {loading && (
           <div className={styles.videoLoading} aria-live="polite">
@@ -169,6 +185,9 @@ function MoviePlayerInner({ stream, isHost, videoRef, onFileSelect }) {
           className={stream ? styles.video : styles.videoHidden}
           aria-label="Tanlangan video"
           title="Tanlangan video"
+          onPlay={() => onPlay?.({ time: r.current?.currentTime ?? 0, playing: true })}
+          onPause={() => onPause?.({ time: r.current?.currentTime ?? 0, playing: false })}
+          onSeeked={() => onSeeked?.({ time: r.current?.currentTime ?? 0, playing: !r.current?.paused })}
         />
       </div>
     );
@@ -184,8 +203,8 @@ function MoviePlayerInner({ stream, isHost, videoRef, onFileSelect }) {
           playsInline
           decoding="async"
           className={styles.video}
-          aria-label="Host video"
-          title="Host video"
+          aria-label="Host videosi"
+          title="Host videosi"
         />
       ) : (
         <div className={styles.moviePlaceholder} aria-hidden="true">
@@ -196,8 +215,14 @@ function MoviePlayerInner({ stream, isHost, videoRef, onFileSelect }) {
   );
 }
 
-function WebcamTileInner({ stream, label, muted = true }) {
-  const ref = useRef(null);
+interface WebcamTileInnerProps {
+  stream: MediaStream | null;
+  label: string;
+  muted?: boolean;
+}
+
+function WebcamTileInner({ stream, label, muted = true }: WebcamTileInnerProps) {
+  const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     if (!ref.current || !stream) return;
     ref.current.srcObject = stream;
@@ -205,7 +230,15 @@ function WebcamTileInner({ stream, label, muted = true }) {
   if (!stream) return null;
   return (
     <div className={styles.tile}>
-      <video ref={ref} autoPlay playsInline muted={muted} decoding="async" className={styles.tileVideo} />
+      <video
+        ref={ref}
+        autoPlay
+        playsInline
+        muted={muted}
+        decoding="async"
+        className={styles.tileVideo}
+        aria-label={`${label} kamerasi`}
+      />
       <span className={styles.tileLabel}>{label}</span>
     </div>
   );

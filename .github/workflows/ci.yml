@@ -19,6 +19,8 @@ jobs:
         run: npm ci
       - name: Quick env (prevents missing-public-url warnings)
         run: echo "VITE_PUBLIC_URL=https://example.com" >> $GITHUB_ENV
+      - name: Run tests
+        run: npm run test
       - name: Run deploy checks
         run: npm run check-deploy
       - name: Build

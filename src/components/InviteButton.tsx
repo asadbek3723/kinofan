@@ -4,9 +4,12 @@ import styles from './InviteButton.module.css';
 
 const canShare = typeof navigator !== 'undefined' && navigator.share;
 
-export default function InviteButton({ roomId }) {
-  const [copied, setCopied] = useState(false);
+interface InviteButtonProps {
+  roomId: string;
+}
 
+export default function InviteButton({ roomId }: InviteButtonProps) {
+  const [copied, setCopied] = useState(false);
   const [lastUrl, setLastUrl] = useState('');
 
   async function handleCopy() {
@@ -31,18 +34,14 @@ export default function InviteButton({ roomId }) {
         url,
       });
     } catch (e) {
-      if (e.name !== 'AbortError') handleCopy();
+      if ((e as Error).name !== 'AbortError') handleCopy();
     }
   }
 
   return (
     <>
       {canShare && (
-        <button
-          type="button"
-          onClick={handleShare}
-          className={styles.button}
-        >
+        <button type="button" onClick={handleShare} className={styles.button} aria-label="Linkni ulashish">
           Ulashish
         </button>
       )}
@@ -50,18 +49,10 @@ export default function InviteButton({ roomId }) {
         type="button"
         onClick={handleCopy}
         className={copied ? styles.buttonCopied : styles.button}
+        aria-label={copied ? 'Nusxalandi!' : 'Taklif linkini nusxalash'}
       >
-        {copied ? 'Nusxalandi!' : 'Invite'}
+        {copied ? 'Nusxalandi!' : 'Linkni nusxalash'}
       </button>
-
-      {/* {lastUrl && (
-        <div className={styles.invitePreview} aria-live="polite">
-          <small style={{ opacity: 0.85 }}>Link:</small>
-          <div>
-            <a href={lastUrl} target="_blank" rel="noopener noreferrer">{lastUrl}</a>
-          </div>
-        </div>
-      )} */}
     </>
   );
 }
